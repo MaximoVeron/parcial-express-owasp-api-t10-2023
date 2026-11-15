@@ -73,21 +73,32 @@ export const updateUser = async (req: CustomRequest, res: Response) => {
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const DEFAULT_LIMIT = 10;
+    const MAX_LIMIT = 50;
 
-    let sql = 'SELECT id, username, email, role, profile_picture_url FROM users';
-    const params: any[] = [];
+    const rawLimit = req.query.limit !== undefined ? parseInt(req.query.limit as string, 10) : DEFAULT_LIMIT;
+    const rawPage = req.query.page !== undefined ? parseInt(req.query.page as string, 10) : 1;
 
-    if (limit) {
-      sql += ' LIMIT ?';
-      params.push(limit);
+    if (Number.isNaN(rawLimit) || rawLimit <= 0 || Number.isNaN(rawPage) || rawPage <= 0) {
+      return res.status(400).json({ message: 'Los parámetros "limit" y "page" deben ser enteros positivos.' });
     }
+
+    const limit = Math.min(rawLimit, MAX_LIMIT);
+    const offset = (rawPage - 1) * limit;
+
+    const sql = 'SELECT id, username, email, role, profile_picture_url FROM users LIMIT ? OFFSET ?';
+    const params: number[] = [limit, offset];
 
     db.all(sql, params, (err, users: User[]) => {
       if (err) {
         return res.status(500).json({ message: 'Server error', error: err.message });
       }
-      res.json(users);
+      res.json({
+        page: rawPage,
+        limit,
+        count: users.length,
+        data: users
+      });
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: (error as Error).message });

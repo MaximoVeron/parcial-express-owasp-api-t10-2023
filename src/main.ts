@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middlewares
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10kb' }));
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
