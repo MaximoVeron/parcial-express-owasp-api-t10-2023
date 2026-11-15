@@ -3,7 +3,6 @@ import bodyParser from 'body-parser';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import couponRoutes from './routes/coupons';
-import deprecatedUserRoutes from './routes/users_v1_deprecated';
 import './services/Database'; // Asegurarse de que la base de datos se inicialice
 
 const app = express();
@@ -28,7 +27,13 @@ app.use(bodyParser.json({ limit: '10kb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/coupons', couponRoutes);
-app.use('/api/v1/users', deprecatedUserRoutes); // API antigua y expuesta
+
+// Retiro definitivo de versión deprecada v1 (API9:2023 - Improper Inventory Management)
+app.use('/api/v1', (req: Request, res: Response) => {
+    res.status(410).json({
+        message: 'La versión v1 de la API ha sido retirada permanentemente. Utilice /api/users.'
+    });
+});
 
 // Ruta de bienvenida
 app.get('/', (req: Request, res: Response) => {
