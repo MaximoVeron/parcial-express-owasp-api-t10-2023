@@ -2,6 +2,37 @@ import { Request, Response } from 'express';
 import { db } from '../services/Database';
 import { User } from '../models/user';
 import axios from 'axios';
+import dns from 'dns';
+import net from 'net';
+
+const isPrivateOrInternalIP = (ip: string): boolean => {
+  if (net.isIPv4(ip)) {
+    const parts = ip.split('.').map(Number);
+    return (
+      parts[0] === 0 ||
+      parts[0] === 10 ||
+      parts[0] === 127 ||
+      (parts[0] === 169 && parts[1] === 254) ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+      (parts[0] === 192 && parts[1] === 168)
+    );
+  }
+  if (net.isIPv6(ip)) {
+    const normalized = ip.toLowerCase();
+    return (
+      normalized === '::1' ||
+      normalized === '::' ||
+      normalized.startsWith('fc') ||
+      normalized.startsWith('fd') ||
+      normalized.startsWith('fe80') ||
+      normalized.startsWith('::ffff:127.') ||
+      normalized.startsWith('::ffff:10.') ||
+      normalized.startsWith('::ffff:192.168.') ||
+      normalized.startsWith('::ffff:169.254.')
+    );
+  }
+  return true;
+};
 
 interface CustomRequest extends Request {
     user?: User;
@@ -124,21 +155,52 @@ export const deleteUser = async (req: Request, res: Response) => {
   }
 };
 
-export const setProfilePictureFromUrl = async (req: Request, res: Response) => {
+export const setProfilePictureFromUrl = async (req: CustomRequest, res: Response) => {
   const { url } = req.body;
 
-  if (!url) {
+  if (!url || typeof url !== 'string') {
     return res.status(400).json({ message: 'URL is required' });
   }
 
+  let parsedUrl: URL;
   try {
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    parsedUrl = new URL(url);
+  } catch {
+    return res.status(400).json({ message: 'Invalid URL format.' });
+  }
 
-    console.log(`Fetched image from ${url}, size: ${response.data.length} bytes.`);
+  if (parsedUrl.protocol !== 'https:') {
+    return res.status(400).json({ message: 'Only HTTPS URLs are allowed.' });
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    return res.status(403).json({ message: 'Access to internal hosts is forbidden.' });
+  }
+
+  try {
+    const addresses = await dns.promises.lookup(hostname, { all: true });
+    if (addresses.length === 0 || addresses.some(addr => isPrivateOrInternalIP(addr.address))) {
+      return res.status(403).json({ message: 'URL resolves to a forbidden private or loopback IP address.' });
+    }
+
+    const response = await axios.get(parsedUrl.toString(), {
+      responseType: 'arraybuffer',
+      timeout: 3000,
+      maxRedirects: 0,
+      maxContentLength: 2 * 1024 * 1024
+    });
+
+    const contentType = String(response.headers['content-type'] || '');
+    if (!contentType.startsWith('image/')) {
+      return res.status(400).json({ message: 'The remote resource is not a valid image.' });
+    }
+
+    console.log(`Fetched image from ${parsedUrl.toString()}, size: ${response.data.length} bytes.`);
 
     res.status(200).json({ message: 'Profile picture updated from URL.' });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch image from URL.', error: (error as Error).message });
+    res.status(400).json({ message: 'Failed to fetch a valid image from the provided URL.' });
   }
 };
 

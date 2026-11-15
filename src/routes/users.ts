@@ -22,7 +22,7 @@ router.get('/admin/users/export_all', authenticate, checkAdminRole, exportAllUse
 
 // Rutas generales y de perfil
 router.get('/', authenticate, checkAdminRole, getAllUsers);
-router.post('/profile-picture', setProfilePictureFromUrl); // A07: SSRF
+router.post('/profile-picture', authenticate, setProfilePictureFromUrl);
 router.put('/profile/update_email', authenticate, updateEmail);
 router.get('/search', authenticate, searchUsers);
 router.get('/account/:id', authenticate, getAccountInfo);
