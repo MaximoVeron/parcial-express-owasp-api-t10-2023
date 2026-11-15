@@ -19,6 +19,39 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_TIME_MS = 15 * 60 * 1000; // 15 minutos
 const loginAttempts = new Map<string, { count: number; lockUntil: number }>();
 
+const sanitizeExternalProfileUrl = (rawUrl: unknown): string | null => {
+  if (typeof rawUrl !== 'string' || rawUrl.length === 0 || rawUrl.length > 255) {
+    return null;
+  }
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:') {
+      return null;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal')
+    ) {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const sanitizeCountryName = (rawCountry: unknown): string | null => {
+  if (typeof rawCountry !== 'string') {
+    return null;
+  }
+  const trimmed = rawCountry.trim();
+  return /^[a-zA-Z\s-]{2,56}$/.test(trimmed) ? trimmed : null;
+};
+
 export const register = async (req: Request, res: Response) => {
   try {
     const { username, password, email } = req.body;
@@ -31,22 +64,42 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
     }
 
-    let countryData: any = {};
+    let safeProfilePictureUrl: string | null = null;
+    let safeCountry: string | null = null;
+
     try {
-      const geoResponse = await axios.get(`https://fictional-geo-api.com/email-to-country?email=${email}`);
-      countryData = geoResponse.data;
+      const geoResponse = await axios.get(
+        `https://fictional-geo-api.com/email-to-country?email=${encodeURIComponent(String(email))}`,
+        {
+          timeout: 2500,
+          maxRedirects: 0,
+          maxContentLength: 10 * 1024
+        }
+      );
+
+      if (geoResponse.data && typeof geoResponse.data === 'object') {
+        safeProfilePictureUrl = sanitizeExternalProfileUrl(geoResponse.data.profile_picture_url);
+        safeCountry = sanitizeCountryName(geoResponse.data.country);
+      }
     } catch (geoError) {
       console.error('Fallo al obtener datos de la API de geolocalización:', (geoError as Error).message);
     }
 
     const hashedPassword = hashPassword(password);
     const sql = 'INSERT INTO users (username, password, email, role, profile_picture_url) VALUES (?, ?, ?, ?, ?)';
-    db.run(sql, [username, hashedPassword, email, 'user', countryData.profile_picture_url], function (err) {
+    db.run(sql, [username, hashedPassword, email, 'user', safeProfilePictureUrl], function (err) {
       if (err) {
         console.error('Database error in register:', err.message);
         return res.status(400).json({ message: 'No se pudo registrar el usuario. Verifique los datos ingresados.' });
       }
-      res.status(201).json({ message: 'User created', userId: this.lastID, data: countryData });
+      res.status(201).json({
+        message: 'User created',
+        userId: this.lastID,
+        data: {
+          country: safeCountry,
+          profile_picture_url: safeProfilePictureUrl
+        }
+      });
     });
 
   } catch (error) {
