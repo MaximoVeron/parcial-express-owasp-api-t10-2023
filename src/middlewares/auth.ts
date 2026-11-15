@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../services/Database';
 import { User } from '../models/user';
-import { JWT_SECRET } from '../controllers/authController';
+import { JWT_SECRET, isTokenRevoked } from '../controllers/authController';
 
 interface CustomRequest extends Request {
     user?: User;
@@ -21,8 +21,12 @@ const authenticate = (req: CustomRequest, res: Response, next: NextFunction) => 
 
     const token = parts[1];
 
+    if (isTokenRevoked(token)) {
+        return res.status(401).json({ message: 'Token has been revoked. Please log in again.' });
+    }
+
     try {
-        const decoded = jwt.verify(token, JWT_SECRET) as unknown as { id: number; role: string };
+        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as unknown as { id: number; role: string };
         const sql = 'SELECT id, username, email, role, profile_picture_url FROM users WHERE id = ?';
         db.get(sql, [decoded.id], (err, row: User) => {
             if (err) {

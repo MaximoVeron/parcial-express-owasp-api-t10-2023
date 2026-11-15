@@ -11,6 +11,25 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
+const hashPassword = (password: string): string => {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${derivedKey}`;
+};
+
+const verifyPassword = (password: string, storedHash: string): boolean => {
+  const [salt, key] = storedHash.split(":");
+  if (!salt || !key) {
+    return false;
+  }
+  const keyBuffer = Buffer.from(key, "hex");
+  const derivedBuffer = crypto.scryptSync(password, salt, 64);
+  if (keyBuffer.length !== derivedBuffer.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(keyBuffer, derivedBuffer);
+};
+
 const db = new sqlite3.Database(DBSOURCE, (err) => {
   if (err) {
     console.error(`Error al conectar con SQLite (${DBSOURCE}):`, err.message);
@@ -37,7 +56,7 @@ const db = new sqlite3.Database(DBSOURCE, (err) => {
     console.log('Tabla "users" creada o ya existente.');
 
     const adminUser = "admin";
-    const adminPass = "admin123";
+    const adminPass = hashPassword(process.env.ADMIN_INITIAL_PASSWORD || "Admin_Secure_2026!");
     const adminEmail = "admin@example.com";
 
     const insertAdmin =
@@ -53,8 +72,4 @@ const db = new sqlite3.Database(DBSOURCE, (err) => {
   });
 });
 
-const hash = (password: string) => {
-  return crypto.createHash("md5").update(password).digest("hex");
-};
-
-export { db, hash };
+export { db, hashPassword, verifyPassword };
