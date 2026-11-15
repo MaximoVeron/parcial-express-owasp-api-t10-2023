@@ -9,6 +9,18 @@ import './services/Database'; // Asegurarse de que la base de datos se inicialic
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Deshabilitar cabecera que revela tecnología del servidor
+app.disable('x-powered-by');
+
+// Cabeceras de seguridad por defecto
+app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+});
+
 // Middlewares
 app.use(bodyParser.json({ limit: '10kb' }));
 
@@ -29,12 +41,16 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-    console.error(err.stack);
-    
-    res.status(500).send({
-        message: 'Ha ocurrido un error interno en el servidor.',
-        error: err.message,
-        stack: err.stack 
+    console.error('[Error Interno]:', err.stack);
+
+    if (err instanceof SyntaxError && 'status' in err && (err as any).status === 400) {
+        return res.status(400).json({
+            message: 'El cuerpo de la petición contiene un formato JSON inválido.'
+        });
+    }
+
+    res.status(500).json({
+        message: 'Ha ocurrido un error interno en el servidor.'
     });
 });
 

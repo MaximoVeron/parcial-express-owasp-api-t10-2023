@@ -43,13 +43,15 @@ export const register = async (req: Request, res: Response) => {
     const sql = 'INSERT INTO users (username, password, email, role, profile_picture_url) VALUES (?, ?, ?, ?, ?)';
     db.run(sql, [username, hashedPassword, email, 'user', countryData.profile_picture_url], function (err) {
       if (err) {
-        return res.status(500).json({ message: 'Error creating user', error: err.message });
+        console.error('Database error in register:', err.message);
+        return res.status(400).json({ message: 'No se pudo registrar el usuario. Verifique los datos ingresados.' });
       }
       res.status(201).json({ message: 'User created', userId: this.lastID, data: countryData });
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Error creating user', error: (error as Error).message });
+    console.error('Unexpected error in register:', error);
+    res.status(500).json({ message: 'Error creating user' });
   }
 };
 
@@ -73,7 +75,8 @@ export const login = async (req: Request, res: Response) => {
   const sql = 'SELECT * FROM users WHERE username = ?';
   db.get(sql, [username], (err, user: User) => {
     if (err) {
-      return res.status(500).json({ message: 'Error logging in', error: err.message });
+      console.error('Database error in login:', err.message);
+      return res.status(500).json({ message: 'Error logging in' });
     }
 
     if (!user || !verifyPassword(password, user.password)) {

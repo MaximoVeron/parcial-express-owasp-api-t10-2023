@@ -50,7 +50,8 @@ export const getUserById = async (req: CustomRequest, res: Response) => {
     const sql = 'SELECT id, username, email, role, profile_picture_url FROM users WHERE id = ?';
     db.get(sql, [requestedId], (err, user: User) => {
       if (err) {
-        return res.status(500).json({ message: 'Server error', error: err.message });
+        console.error('Database error in getUserById:', err.message);
+        return res.status(500).json({ message: 'Server error' });
       }
 
       if (!user) {
@@ -60,7 +61,8 @@ export const getUserById = async (req: CustomRequest, res: Response) => {
       res.json(user);
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: (error as Error).message });
+    console.error('Unexpected error in getUserById:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -90,7 +92,8 @@ export const updateUser = async (req: CustomRequest, res: Response) => {
     const sql = `UPDATE users SET ${fields} WHERE id = ?`;
     db.run(sql, [...values, requestedId], function (err) {
       if (err) {
-        return res.status(500).json({ message: 'Server error', error: err.message });
+        console.error('Database error in updateUser:', err.message);
+        return res.status(500).json({ message: 'Server error' });
       }
       if (this.changes === 0) {
         return res.status(404).json({ message: 'User not found or no changes made.' });
@@ -98,7 +101,8 @@ export const updateUser = async (req: CustomRequest, res: Response) => {
       res.json({ message: 'User updated successfully', changes: this.changes });
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: (error as Error).message });
+    console.error('Unexpected error in updateUser:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -122,7 +126,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
     db.all(sql, params, (err, users: User[]) => {
       if (err) {
-        return res.status(500).json({ message: 'Server error', error: err.message });
+        console.error('Database error in getAllUsers:', err.message);
+        return res.status(500).json({ message: 'Server error' });
       }
       res.json({
         page: rawPage,
@@ -132,7 +137,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
       });
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: (error as Error).message });
+    console.error('Unexpected error in getAllUsers:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -143,7 +149,8 @@ export const deleteUser = async (req: Request, res: Response) => {
     const sql = 'DELETE FROM users WHERE id = ?';
     db.run(sql, [id], function (err) {
       if (err) {
-        return res.status(500).json({ message: 'Server error', error: err.message });
+        console.error('Database error in deleteUser:', err.message);
+        return res.status(500).json({ message: 'Server error' });
       }
       if (this.changes === 0) {
         return res.status(404).json({ message: 'User not found.' });
@@ -151,7 +158,8 @@ export const deleteUser = async (req: Request, res: Response) => {
       res.status(200).json({ message: 'User deleted' });
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: (error as Error).message });
+    console.error('Unexpected error in deleteUser:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -205,13 +213,14 @@ export const setProfilePictureFromUrl = async (req: CustomRequest, res: Response
 };
 
 export const searchUsers = (req: Request, res: Response) => {
-    const query = req.query.q as string;
+    const query = typeof req.query.q === 'string' ? req.query.q : '';
 
-    const sql = `SELECT id, username, role FROM users WHERE username LIKE '%${query}%'`;
+    const sql = 'SELECT id, username, role FROM users WHERE username LIKE ? LIMIT 50';
 
-    db.all(sql, [], (err, rows: User[]) => {
+    db.all(sql, [`%${query}%`], (err, rows: User[]) => {
         if (err) {
-            return res.status(500).json({ error: err.message });
+            console.error('Database error in searchUsers:', err.message);
+            return res.status(500).json({ message: 'Internal server error' });
         }
         res.json({ users: rows });
     });
@@ -224,7 +233,8 @@ export const updateEmail = (req: CustomRequest, res: Response) => {
     const sql = 'UPDATE users SET email = ? WHERE id = ?';
     db.run(sql, [new_email, loggedInUser.id], function (err) {
         if (err) {
-            return res.status(500).json({ error: err.message });
+            console.error('Database error in updateEmail:', err.message);
+            return res.status(500).json({ message: 'Internal server error' });
         }
         if (this.changes === 0) {
             return res.status(404).send('User not found or email not changed.');
@@ -244,7 +254,8 @@ export const getAccountInfo = (req: CustomRequest, res: Response) => {
 
     db.get(sql, [accountId], (err, row: User) => {
         if (err) {
-            return res.status(500).json({ error: err.message });
+            console.error('Database error in getAccountInfo:', err.message);
+            return res.status(500).json({ message: 'Internal server error' });
         }
         if (!row) {
             return res.status(404).json({ error: 'Cuenta no encontrada' });
@@ -268,7 +279,8 @@ export const exportAllUsers = (req: CustomRequest, res: Response) => {
     const sql = 'SELECT id, username, email, role FROM users';
     db.all(sql, [], (err, rows: User[]) => {
         if (err) {
-            return res.status(500).json({ error: err.message });
+            console.error('Database error in exportAllUsers:', err.message);
+            return res.status(500).json({ message: 'Internal server error' });
         }
 
         res.json({

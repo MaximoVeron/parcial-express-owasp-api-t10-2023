@@ -30,7 +30,8 @@ const authenticate = (req: CustomRequest, res: Response, next: NextFunction) => 
         const sql = 'SELECT id, username, email, role, profile_picture_url FROM users WHERE id = ?';
         db.get(sql, [decoded.id], (err, row: User) => {
             if (err) {
-                return res.status(500).json({ error: err.message });
+                console.error('Database error in authenticate middleware:', err.message);
+                return res.status(500).json({ message: 'Internal server error.' });
             }
             if (!row) {
                 return res.status(401).json({ message: 'Invalid or expired token.' });
@@ -39,7 +40,7 @@ const authenticate = (req: CustomRequest, res: Response, next: NextFunction) => 
             next();
         });
     } catch (err) {
-        return res.status(401).json({ message: 'Invalid or expired token.', error: (err as Error).message });
+        return res.status(401).json({ message: 'Invalid or expired token.' });
     }
 };
 
