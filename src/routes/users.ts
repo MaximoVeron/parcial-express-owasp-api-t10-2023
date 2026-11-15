@@ -25,7 +25,7 @@ router.get('/', getAllUsers); // A04: Unrestricted Resource Consumption (?limit=
 router.post('/profile-picture', setProfilePictureFromUrl); // A07: SSRF
 router.put('/profile/update_email', authenticate, updateEmail);
 router.get('/search', searchUsers);
-router.get('/account/:id', getAccountInfo);
+router.get('/account/:id', authenticate, getAccountInfo);
 router.post('/recover', recoverPassword);
 
 // Rutas por ID de usuario

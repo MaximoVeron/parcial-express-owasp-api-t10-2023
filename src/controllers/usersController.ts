@@ -7,11 +7,17 @@ interface CustomRequest extends Request {
     user?: User;
 }
 
-export const getUserById = async (req: Request, res: Response) => {
+export const getUserById = async (req: CustomRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const requestedId = Number(id);
+
+    if (!req.user || (req.user.id !== requestedId && req.user.role !== 'admin')) {
+      return res.status(403).json({ message: 'Acceso denegado: no tienes permisos sobre este recurso.' });
+    }
+
     const sql = 'SELECT id, username, email, role, profile_picture_url, password FROM users WHERE id = ?';
-    db.get(sql, [id], (err, user: User) => {
+    db.get(sql, [requestedId], (err, user: User) => {
       if (err) {
         return res.status(500).json({ message: 'Server error', error: err.message });
       }
@@ -27,9 +33,15 @@ export const getUserById = async (req: Request, res: Response) => {
   }
 };
 
-export const updateUser = async (req: Request, res: Response) => {
+export const updateUser = async (req: CustomRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const requestedId = Number(id);
+
+    if (!req.user || (req.user.id !== requestedId && req.user.role !== 'admin')) {
+      return res.status(403).json({ message: 'Acceso denegado: no puedes modificar otro usuario.' });
+    }
+
     const updateData = req.body;
 
     const fields = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
@@ -139,8 +151,12 @@ export const updateEmail = (req: CustomRequest, res: Response) => {
     });
 };
 
-export const getAccountInfo = (req: Request, res: Response) => {
-    const accountId = req.params.id;
+export const getAccountInfo = (req: CustomRequest, res: Response) => {
+    const accountId = Number(req.params.id);
+
+    if (!req.user || (req.user.id !== accountId && req.user.role !== 'admin')) {
+        return res.status(403).json({ error: 'Acceso denegado a la información de esta cuenta.' });
+    }
 
     const sql = 'SELECT id, username, role FROM users WHERE id = ?';
 
