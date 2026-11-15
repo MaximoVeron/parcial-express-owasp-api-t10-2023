@@ -16,7 +16,7 @@ export const getUserById = async (req: CustomRequest, res: Response) => {
       return res.status(403).json({ message: 'Acceso denegado: no tienes permisos sobre este recurso.' });
     }
 
-    const sql = 'SELECT id, username, email, role, profile_picture_url, password FROM users WHERE id = ?';
+    const sql = 'SELECT id, username, email, role, profile_picture_url FROM users WHERE id = ?';
     db.get(sql, [requestedId], (err, user: User) => {
       if (err) {
         return res.status(500).json({ message: 'Server error', error: err.message });
@@ -42,13 +42,22 @@ export const updateUser = async (req: CustomRequest, res: Response) => {
       return res.status(403).json({ message: 'Acceso denegado: no puedes modificar otro usuario.' });
     }
 
-    const updateData = req.body;
+    const ALLOWED_FIELDS = ['username', 'email', 'profile_picture_url'] as const;
+    const sanitizedEntries = Object.entries(req.body || {}).filter(([key]) =>
+      (ALLOWED_FIELDS as readonly string[]).includes(key)
+    );
 
-    const fields = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
-    const values = Object.values(updateData);
+    if (sanitizedEntries.length === 0) {
+      return res.status(400).json({
+        message: 'No se proporcionaron campos válidos para actualizar. Campos permitidos: username, email, profile_picture_url.'
+      });
+    }
+
+    const fields = sanitizedEntries.map(([key]) => `${key} = ?`).join(', ');
+    const values = sanitizedEntries.map(([, value]) => value);
 
     const sql = `UPDATE users SET ${fields} WHERE id = ?`;
-    db.run(sql, [...values, id], function (err) {
+    db.run(sql, [...values, requestedId], function (err) {
       if (err) {
         return res.status(500).json({ message: 'Server error', error: err.message });
       }
